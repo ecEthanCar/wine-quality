@@ -1,0 +1,195 @@
+---
+title: "Red Analysis"
+output: pdf_document
+---
+
+```{r}
+
+
+#red wine analysis
+winequality_red <- read_csv("~/Desktop/wine-quality/wine+quality+raw/winequality-red.csv",  sep = ';')
+
+# bot plots
+boxplot(winequality_red)
+#analysis we can see that free sulfer dioxide and total sulfer dioxide is highly variable.
+
+library(psych)
+describe(winequality_red)
+
+#correlation plots
+#install.packages("ggcorrplot")
+library(ggcorrplot)
+
+# Compute correlation at 2 decimal places
+corr_matrix = round(cor(winequality_red), 2)
+# Compute and show the  result
+ggcorrplot(corr_matrix, hc.order = TRUE, type = "lower",
+          lab = TRUE)
+
+
+
+
+#linear models
+red_lm <- lm( quality ~. , data = winequality_red)
+summary(red_lm)
+
+#residuals
+# Get the model residuals
+model_residuals = red_lm$residuals
+
+# Plot the result of the residuals
+hist(model_residuals)
+
+#we can see that the residuals are slightly normal
+
+
+```
+
+the summary of linear model of red wine data set shows that `volatile acidity,
+chlorides, free sulfur dioxide, total sulfur dioxide, pH , sulphates, and alcohol.
+This shows that 
+
+
+
+
+```{r}
+#bootstrapping
+set.seed(1)
+sample <- sample.int(n = nrow(winequality_red), size = floor(.75*nrow(winequality_red)), replace = F)
+train <- winequality_red[sample, ]
+test  <- winequality_red[-sample, ]
+
+
+#we should consider if we should use all factors or only the ones that were sig
+#in the lm.
+
+#LDA
+library(MASS)
+lda.fit= lda( quality ~. , data = winequality_red)
+lda.fit
+
+    #test error rate
+    lda.pred=predict(lda.fit, test)
+    sum(lda.pred$class != test$quality)/(nrow(test))
+  #38% 
+                                         
+                                         
+
+#NAIVE BAYES
+library(e1071)
+nb.fit <- naiveBayes(quality ~. , data = winequality_red)
+summary(nb.fit)
+
+    #test error
+    p <- predict(nb.fit, test)
+    tab2 <- table(p, test$quality)
+    tab2
+    1 - sum(diag(tab2)) / sum(tab2)
+
+    
+    
+#KNN
+library(class)
+set.seed(2)
+train.mpg <- train$quality # Y for training data
+
+
+ks<-c(1,4,5,6,10,20,30) #Example values of K to try 
+    
+    #test error
+    test_errors <- numeric(length(ks)) # Store test errors for each K 
+    for (i in seq_along(ks)) {
+      knn.pred <- knn(train = train, test = test, cl = train.mpg, k = ks[i])
+      test_errors[i] <- mean(knn.pred != winequality_red$quality[!rownames(winequality_red) %in% rownames(train)])
+      cat("Test error for k =", ks[i], "is", test_errors[i], "\n")}
+
+
+```
+
+
+```{r}
+#model selection #foward, backward, best subset selection
+install.packages("leaps")
+library(leaps)
+
+#foward
+fwd = regsubsets(quality~., data = winequality_red, nvmax = 19, method = "forward")
+summary(fwd)
+coef(fwd, 11)
+
+#backward
+bwd = regsubsets(quality~., data = winequality_red, nvmax = 19, method = "backward")
+summary(bwd)
+coef(bwd, 11)
+
+#best-subset
+best = regsubsets(quality~., data = winequality_red, nvmax = 19)
+summary(best)
+coef(best, 11)
+
+#how many variables should we choose??
+
+```
+
+
+```{r}
+#RIDGE, LASSO, PCR
+#install.packages("glmnet")
+
+x <- model.matrix(quality~., winequality_red)
+y <- winequality_red$quality
+
+#ridge regression
+library(glmnet)
+grid <- 10^seq(10, -2, length = 100)
+ridge.mod <- glmnet(x, y, alpha = 0, lambda = grid)
+ridge.mod
+  
+
+set.seed(2)
+train <- sample(1:nrow(x), nrow(x) / 2)
+test <- (-train)
+y.test <- y[test]
+
+
+set.seed(1)
+cv.out <- cv.glmnet(x[train, ], y[train], alpha = 0)
+plot(cv.out)
+bestlam <- cv.out$lambda.min
+bestlam
+
+
+
+
+#lasso regression
+lasso.mod <- glmnet(x[train, ], y[train], alpha = 1, lambda = grid)
+plot(lasso.mod)
+
+set.seed(1)
+cv.out <- cv.glmnet(x[train, ], y[train], alpha = 1) 
+plot(cv.out)
+bestlam <- cv.out$lambda.min
+bestlam
+lasso.pred <- predict(lasso.mod, s = bestlam,newx = x[test, ])
+mean((lasso.pred - y.test)^2)
+
+
+
+
+#PCR
+install.packages("pls")
+library(pls) 
+set.seed(2)
+
+
+pcr.fit <- pcr(quality~., data = winequality_red, scale = TRUE, validation = "CV")
+summary(pcr.fit)
+#smallest when 10 predictors
+
+validationplot(pcr.fit, val.type = "MSEP")
+
+```
+
+
+
+
