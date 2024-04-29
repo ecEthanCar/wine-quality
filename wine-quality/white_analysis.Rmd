@@ -1,0 +1,48 @@
+---
+title: "white_analysis"
+output: pdf_document
+---
+
+```{r}
+#white wine analysis
+library(readr)
+winequality_white <- read_delim("~/Desktop/wine-quality/wine+quality+raw/winequality-white.csv", 
+    delim = ";", escape_double = FALSE, trim_ws = TRUE)
+View(winequality_white)
+
+
+# bot plots
+boxplot(winequality_white)
+#analysis we can see that free sulfer dioxide and total sulfer dioxide is highly variable.
+
+library(psych)
+describe(winequality_white)
+
+#correlation plots
+#install.packages("ggcorrplot")
+library(ggcorrplot)
+
+# Compute correlation at 2 decimal places
+corr_matrix = round(cor(winequality_white), 2)
+# Compute and show the  result
+ggcorrplot(corr_matrix, hc.order = TRUE, type = "lower",
+          lab = TRUE)
+
+
+
+
+#linear models
+white_lm <- lm( quality ~. , data = winequality_white)
+summary(white_lm)
+
+#residuals
+# Get the model residuals
+model_residuals = white_lm$residuals
+
+# Plot the result of the residuals
+hist(model_residuals)
+
+#we can see that the residuals are slightly normal
+
+
+```
