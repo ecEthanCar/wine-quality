@@ -2,11 +2,39 @@
 
 ```{r}
 
-wine <- read.csv()
+wine <- read_csv("~/Desktop/STSCI 4740/wine-quality/wine-quality-white-and-red.csv")
+
+white <- wine[wine$type == "white", ]
+red <- wine[wine$type == "red", ]
 
 ```
 
 
 ```{r}
+# These are all related to type
 
+# Boxplot for wine type vs. quality rating, median distribution is not different
+boxplot(quality ~ type, wine)
+
+# we can conclude the distributions are normal
+hist(white$quality)
+hist(red$quality)
+
+# Test to determine if difference in quality between white and red is significant
+quality_red <- wine[wine$type == "red", "quality"]
+quality_white <- wine[wine$type == "white", "quality"]
+
+t_result <- t.test(quality_red, quality_white)
+t_result
+# p-value is very low, there is a significant difference between the mean quality of white and red wines. Considering the two wine are also contextually different, we will analyze and fit each type of wine separately.
+```
+
+```{r}
+# Linear correlation for all other vars on quality (separated by type)
+cor_white <- cor(white_no_type[, "quality"], white_no_type)
+cor_red <- cor(red_no_type[, "quality"], red_no_type)
+
+combined_cor <- as.data.frame(rbind(cor_white, cor_red))
+rownames(combined_cor) <- c("White Quality Correlation", "Red Quality Correlation")
+print(combined_cor)
 ```
