@@ -38,3 +38,41 @@ combined_cor <- as.data.frame(rbind(cor_white, cor_red))
 rownames(combined_cor) <- c("White Quality Correlation", "Red Quality Correlation")
 print(combined_cor)
 ```
+```{r}
+
+#foward
+fwd = regsubsets(quality~., data = red_no_type, nvmax = 19, method = "forward")
+summary(fwd)
+coef(fwd, 11)
+
+#backward
+bwd = regsubsets(quality~., data = white_no_type, nvmax = 19, method = "backward")
+summary(bwd)
+#coef(bwd, 11)
+
+#best-subset
+best = regsubsets(quality~., data = wine_no_type, nvmax = 19)
+summary(best)
+#coef(best, 11)
+
+```
+
+```{r}
+
+# Do BIC line graph next
+
+```
+
+```{r}
+
+full_red_sub <- regsubsets(quality ~., data = red_no_type, nvmax = 11)
+plot(full_red_sub, scale = "bic")
+
+full_red_for <- regsubsets(quality ~., data = red_no_type, method = "forward", nvmax = 11)
+plot(full_red_for, scale = "bic")
+
+full_red_back <- regsubsets(quality ~., data = red_no_type, method = "backward", nvmax = 11)
+plot(full_red_back, scale = "bic")
+
+```
+
