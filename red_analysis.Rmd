@@ -1,34 +1,56 @@
 ---
-title: "Red Analysis"
+  title: "Red Analysis"
 output: pdf_document
 ---
-
+  
+  RED AND WHITE ANALYSIS
 ```{r}
+# Boxplot for wine type vs. quality rating, median distribution is not different
+boxplot(quality ~ type, wine)
+
+# we can conclude the distributions are normal
+hist(white$quality)
+hist(red$quality)
+
+# Test to determine if difference in quality between white and red is significant
+quality_red <- wine[wine$type == "red", "quality"]
+quality_white <- wine[wine$type == "white", "quality"]
+
+t_result <- t.test(quality_red, quality_white)
+t_result
+# p-value is very low, there is a significant difference between the mean quality of white and red wines. Considering the two wine are also contextually different, we will analyze and fit each type of wine separately.
+
+```
 
 
-#red wine analysis
-winequality_red <- read_csv("~/Desktop/wine-quality/wine+quality+raw/winequality-red.csv",  sep = ';')
+RED WINE ANALYSIS
+```{r}
+#reading in the data
+library(readr)
+library(ggcorrplot)
+library(psych)
+library(leaps)
 
+winequality_red <- read_delim("~/Desktop/wine-quality/wine+quality+raw/winequality-red.csv", 
+                              delim = ";", escape_double = FALSE, trim_ws = TRUE)
+
+
+#descriptive analysis
 # bot plots
 boxplot(winequality_red)
-#analysis we can see that free sulfer dioxide and total sulfer dioxide is highly variable.
-
-library(psych)
 describe(winequality_red)
-
-#correlation plots
-#install.packages("ggcorrplot")
-library(ggcorrplot)
-
 # Compute correlation at 2 decimal places
 corr_matrix = round(cor(winequality_red), 2)
+corr_matrix
 # Compute and show the  result
 ggcorrplot(corr_matrix, hc.order = TRUE, type = "lower",
-          lab = TRUE)
+           lab = TRUE)
+```
+From the analysis of box plot,we can see that free sulfer dioxide and total 
+sulfer dioxide is highly variable.
 
-
-
-
+```{r}
+#fitting a linear model using all parameters
 #linear models
 red_lm <- lm( quality ~. , data = winequality_red)
 summary(red_lm)
@@ -39,157 +61,72 @@ model_residuals = red_lm$residuals
 
 # Plot the result of the residuals
 hist(model_residuals)
-
-#we can see that the residuals are slightly normal
-
-
 ```
-
-the summary of linear model of red wine data set shows that `volatile acidity,
-chlorides, free sulfur dioxide, total sulfur dioxide, pH , sulphates, and alcohol.
-This shows that 
+we can see that the residuals are slightly normal.
 
 
 
 
 ```{r}
-#bootstrapping
-set.seed(1)
-sample <- sample.int(n = nrow(winequality_red), size = floor(.75*nrow(winequality_red)), replace = F)
-train <- winequality_red[sample, ]
-test  <- winequality_red[-sample, ]
 
-
-#we should consider if we should use all factors or only the ones that were sig
-#in the lm.
-
-#LDA
-library(MASS)
-lda.fit= lda( quality ~. , data = winequality_red)
-lda.fit
-
-    #test error rate
-    lda.pred=predict(lda.fit, test)
-    sum(lda.pred$class != test$quality)/(nrow(test))
-  #38% 
-                                         
-                                         
-
-#NAIVE BAYES
-library(e1071)
-nb.fit <- naiveBayes(quality ~. , data = winequality_red)
-summary(nb.fit)
-
-    #test error
-    p <- predict(nb.fit, test)
-    tab2 <- table(p, test$quality)
-    tab2
-    1 - sum(diag(tab2)) / sum(tab2)
-
-    
-    
-#KNN
-library(class)
-set.seed(2)
-train.mpg <- train$quality # Y for training data
-
-
-ks<-c(1,4,5,6,10,20,30) #Example values of K to try 
-    
-    #test error
-    test_errors <- numeric(length(ks)) # Store test errors for each K 
-    for (i in seq_along(ks)) {
-      knn.pred <- knn(train = train, test = test, cl = train.mpg, k = ks[i])
-      test_errors[i] <- mean(knn.pred != winequality_red$quality[!rownames(winequality_red) %in% rownames(train)])
-      cat("Test error for k =", ks[i], "is", test_errors[i], "\n")}
-
-
-```
-
-
-```{r}
-#model selection #foward, backward, best subset selection
-install.packages("leaps")
-library(leaps)
-
-#foward
-fwd = regsubsets(quality~., data = winequality_red, nvmax = 19, method = "forward")
-summary(fwd)
-coef(fwd, 11)
-
-#backward
-bwd = regsubsets(quality~., data = winequality_red, nvmax = 19, method = "backward")
-summary(bwd)
-coef(bwd, 11)
-
-#best-subset
+#best-subset selection
 best = regsubsets(quality~., data = winequality_red, nvmax = 19)
-summary(best)
-coef(best, 11)
+best_summary <- summary(best)
+best_summary
 
-#how many variables should we choose??
+#calculating BIC
+plot(best_summary$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+bic_min = which.min(best_summary$bic) 
+points(bic_min, best_summary$bic[bic_min], col = "red", cex = 2, pch = 20)
+
+
+```
+BIC graph shows that having 6 number of variable has lowest BIC. So we will choose the 
+6 variables from best subset selection: volatile acidity, chlorides, total sulfur dioxide, pH, 
+sulphates, and alcohol.
+
+
+```{r}
+#getting test and training dataset and linear model using the 6 co-variates 
+#chosen from best subset selection
+
+calculate_test_error <- function(seed) {
+  set.seed(seed)
+  n <- nrow(winequality_red)
+  size <- floor(n * 0.75)  # Corrected to take 75% of the data size for training
+  
+  # Training the test model
+  train_ind <- sample(seq_len(n), size = size)
+  trainData <- winequality_red[train_ind, ]
+  testData <- winequality_red[-train_ind, ]
+  
+  # Fit linear model
+  model <- lm(quality ~ `volatile acidity` + chlorides + `total sulfur dioxide` + pH + sulphates + alcohol, data = trainData)
+  
+  # Predicting on test data using the fitted model
+  predicted_values <- predict(model, newdata = testData)
+  
+  # Compute the test error as Root Mean Squared Error (RMSE)
+  actual_values <- testData$quality
+  error <- sqrt(mean((predicted_values - actual_values)^2))
+  return(error)
+}
 
 ```
 
 
 ```{r}
-#RIDGE, LASSO, PCR
-#install.packages("glmnet")
+#average MSE of linear model using 6 coviarates
+mse1 <- calculate_test_error(1)
+mse2 <- calculate_test_error(2)
+mse3 <- calculate_test_error(3)
+mse4 <- calculate_test_error(4)
+mse5 <- calculate_test_error(5)
 
-x <- model.matrix(quality~., winequality_red)
-y <- winequality_red$quality
-
-#ridge regression
-library(glmnet)
-grid <- 10^seq(10, -2, length = 100)
-ridge.mod <- glmnet(x, y, alpha = 0, lambda = grid)
-ridge.mod
-  
-
-set.seed(2)
-train <- sample(1:nrow(x), nrow(x) / 2)
-test <- (-train)
-y.test <- y[test]
-
-
-set.seed(1)
-cv.out <- cv.glmnet(x[train, ], y[train], alpha = 0)
-plot(cv.out)
-bestlam <- cv.out$lambda.min
-bestlam
-
-
-
-
-#lasso regression
-lasso.mod <- glmnet(x[train, ], y[train], alpha = 1, lambda = grid)
-plot(lasso.mod)
-
-set.seed(1)
-cv.out <- cv.glmnet(x[train, ], y[train], alpha = 1) 
-plot(cv.out)
-bestlam <- cv.out$lambda.min
-bestlam
-lasso.pred <- predict(lasso.mod, s = bestlam,newx = x[test, ])
-mean((lasso.pred - y.test)^2)
-
-
-
-
-#PCR
-install.packages("pls")
-library(pls) 
-set.seed(2)
-
-
-pcr.fit <- pcr(quality~., data = winequality_red, scale = TRUE, validation = "CV")
-summary(pcr.fit)
-#smallest when 10 predictors
-
-validationplot(pcr.fit, val.type = "MSEP")
-
+print(mean(mse1,mse2,,mse3,mse4,mse5))
 ```
 
-
-
+Result shows that the MSE from using a linear model with 6 predictors chosen from 
+best subset selection has average MSE of 65%. This is a high number, so we will try nonlinear functions
+to predict quality.
 
