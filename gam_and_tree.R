@@ -5,35 +5,38 @@ splits = split(wine,wine$type)
 red_wine_data <- splits$red
 white_wine_data <- splits$white
 
-library(gam)
-#library(mgcv)
+#library(gam)
+library(mgcv)
 
-# GAM for red wine with 10-fold CV error
-# Assuming red_wine_data is your dataset and quality is the response variable
-set.seed(123) # for reproducibility
-
-# Shuffle the data
-red_wine_data <- red_wine_data[sample(nrow(red_wine_data)), ]
-
-# Create 10 equally sized folds
-folds <- cut(seq(1, nrow(red_wine_data)), breaks = 10, labels = FALSE)
+# GAM for red wine with optimal degree of freedom by REML
 
 # Initialize an empty vector to store the MSE for each fold
-mse_values <- vector(length = 10)
+mse_values <- numeric(5)
 
 # Perform 10-fold cross-validation
-for(i in 1:10) {
+for(i in 1:5) {
+  set.seed(i)
+
+  #generate train index
+  train_indexes <- sample(1:nrow(red_wine_data), nrow(red_wine_data) / 2)
+
   # Split the data into training and test sets
-  test_indexes <- which(folds == i, arr.ind = TRUE)
-  test_data <- red_wine_data[test_indexes, ]
-  train_data <- red_wine_data[-test_indexes, ]
+  test_data <- red_wine_data[-train_indexes, ]
+  train_data <- red_wine_data[train_indexes, ]
   
-  # Fit the GAM model on the training set
-  gam_model <- gam(quality ~ s(fixed.acidity, 5) + s(volatile.acidity, 5) + s(citric.acid, 5) +
-                   s(residual.sugar, 5) + s(chlorides, 5) + s(free.sulfur.dioxide, 5) +
-                   s(total.sulfur.dioxide, 5) + s(density, 5) + s(pH, 5) +
-                   s(sulphates, 5) + s(alcohol, 5),
-                   data = train_data)
+  # Fit the GAM model on the training set using REML for smoothness selection
+  gam_model <- gam(quality ~ s(fixed.acidity, k = -1) + 
+                     s(volatile.acidity, k = -1) + 
+                     s(citric.acid, k = -1) + 
+                     s(residual.sugar, k = -1) + 
+                     s(chlorides, k = -1) + 
+                     s(free.sulfur.dioxide, k = -1) + 
+                     s(total.sulfur.dioxide, k = -1) + 
+                     s(density, k = -1) + 
+                     s(pH, k = -1) + 
+                     s(sulphates, k = -1) + 
+                     s(alcohol, k = -1),
+                   data = train_data, method = "REML")
   
   # Predict on the test set
   predictions <- predict(gam_model, test_data)
@@ -43,47 +46,52 @@ for(i in 1:10) {
 }
 
 # The cross-validated MSE is the mean of the MSE values from each fold
-cv_mse <- mean(mse_values)
-cv_mse
+mse_values
+mean(mse_values)
 
 
-# GAM for white wine with 10-fold CV error
-# Assuming red_wine_data is your dataset and quality is the response variable
-set.seed(123) # for reproducibility
 
-# Shuffle the data
-white_wine_data <- white_wine_data[sample(nrow(white_wine_data)), ]
-
-# Create 10 equally sized folds
-folds <- cut(seq(1, nrow(white_wine_data)), breaks = 10, labels = FALSE)
+# GAM for white wine with optimal degree of freedom by REML
 
 # Initialize an empty vector to store the MSE for each fold
-mse_values <- vector(length = 10)
+white_mse_values <- numeric(5)
 
 # Perform 10-fold cross-validation
-for(i in 1:10) {
+for(i in 1:5) {
+  set.seed(i)
+
+  #generate train index
+  train_indexes <- sample(1:nrow(white_wine_data), nrow(white_wine_data) / 2)
+
   # Split the data into training and test sets
-  test_indexes <- which(folds == i, arr.ind = TRUE)
-  test_data <- white_wine_data[test_indexes, ]
-  train_data <- white_wine_data[-test_indexes, ]
+  test_data <- white_wine_data[-train_indexes, ]
+  train_data <- white_wine_data[train_indexes, ]
   
-  # Fit the GAM model on the training set
-  gam_model <- gam(quality ~ s(fixed.acidity, 5) + s(volatile.acidity, 5) + s(citric.acid, 5) +
-                   s(residual.sugar, 5) + s(chlorides, 5) + s(free.sulfur.dioxide, 5) +
-                   s(total.sulfur.dioxide, 5) + s(density, 5) + s(pH, 5) +
-                   s(sulphates, 5) + s(alcohol, 5),
-                   data = train_data)
+  # Fit the GAM model on the training set using REML for smoothness selection
+  gam_model <- gam(quality ~ s(fixed.acidity, k = -1) + 
+                     s(volatile.acidity, k = -1) + 
+                     s(citric.acid, k = -1) + 
+                     s(residual.sugar, k = -1) + 
+                     s(chlorides, k = -1) + 
+                     s(free.sulfur.dioxide, k = -1) + 
+                     s(total.sulfur.dioxide, k = -1) + 
+                     s(density, k = -1) + 
+                     s(pH, k = -1) + 
+                     s(sulphates, k = -1) + 
+                     s(alcohol, k = -1),
+                   data = train_data, method = "REML")
   
   # Predict on the test set
   predictions <- predict(gam_model, test_data)
   
   # Calculate MSE for this fold and store it
-  mse_values[i] <- mean((test_data$quality - predictions) ^ 2)
+  white_mse_values[i] <- mean((test_data$quality - predictions) ^ 2)
 }
 
 # The cross-validated MSE is the mean of the MSE values from each fold
-w_cv_mse <- mean(mse_values)
-w_cv_mse
+white_mse_values
+mean(white_mse_values)
+
 
 
 # Implement a simple regression tree for red wine first
