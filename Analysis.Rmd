@@ -1,24 +1,32 @@
 
 
 ```{r}
+library(readr)
+library(ggcorrplot)
+library(psych)
+library(leaps)
+library(dplyr)
 
-wine <- read_csv("~/Desktop/STSCI 4740/wine-quality/wine-quality-white-and-red.csv")
+
+wine <- read_csv("~/Desktop/wine-quality/wine-quality-white-and-red.csv")
 
 white <- wine[wine$type == "white", ]
+white = select(white, -1,)
+
 red <- wine[wine$type == "red", ]
+red = select(red, -1,)
 
 ```
 
-
+  RED AND WHITE COMBINED DATA ANALYSIS
 ```{r}
-# These are all related to type
 
 # Boxplot for wine type vs. quality rating, median distribution is not different
 boxplot(quality ~ type, wine)
 
 # we can conclude the distributions are normal
-hist(white$quality)
 hist(red$quality)
+hist(white$quality)
 
 # Test to determine if difference in quality between white and red is significant
 quality_red <- wine[wine$type == "red", "quality"]
@@ -29,50 +37,201 @@ t_result
 # p-value is very low, there is a significant difference between the mean quality of white and red wines. Considering the two wine are also contextually different, we will analyze and fit each type of wine separately.
 ```
 
-```{r}
-# Linear correlation for all other vars on quality (separated by type)
-cor_white <- cor(white_no_type[, "quality"], white_no_type)
-cor_red <- cor(red_no_type[, "quality"], red_no_type)
 
-combined_cor <- as.data.frame(rbind(cor_white, cor_red))
-rownames(combined_cor) <- c("White Quality Correlation", "Red Quality Correlation")
-print(combined_cor)
-```
-```{r}
-
-#foward
-fwd = regsubsets(quality~., data = red_no_type, nvmax = 19, method = "forward")
-summary(fwd)
-coef(fwd, 11)
-
-#backward
-bwd = regsubsets(quality~., data = white_no_type, nvmax = 19, method = "backward")
-summary(bwd)
-#coef(bwd, 11)
-
-#best-subset
-best = regsubsets(quality~., data = wine_no_type, nvmax = 19)
-summary(best)
-#coef(best, 11)
-
-```
+RED AND WHITE SEPERATED DESCRIPTIVE DATA ANALYSIS
 
 ```{r}
+##RED DESCRIPTIVE ANALYSIS
+  #plot
+  plot(quality ~ ., data =red)
+  #doesn't show a linear relationship
 
-# Do BIC line graph next
-
+  # bot plots
+  boxplot(red)
+  
+  # Compute correlation at 2 decimal places
+  corr_matrix = round(cor(red), 2)
+  corr_matrix
+  # Compute and show the  result
+  ggcorrplot(corr_matrix, hc.order = TRUE, type = "lower",
+             lab = TRUE)
+  #From the analysis of box plot,we can see that free sulfer dioxide and total 
+  # sulfer dioxide is highly variable.
+  
+##WHITE DESCRIPTIVE ANALYSIS
+  #plot
+  plot(quality ~ ., data =white)
+  #doesn't show a linear relationship
+  
+  # bot plots
+  boxplot(white)
+  
+  # Compute correlation at 2 decimal places
+  corr_matrix = round(cor(white), 2)
+  corr_matrix
+  # Compute and show the  result
+  ggcorrplot(corr_matrix, hc.order = TRUE, type = "lower",
+             lab = TRUE)
+  
+  #From the analysis of box plot,we can also see that free sulfer dioxide and total 
+  # sulfer dioxide is highly variable.
 ```
+
+LINEAR REGRESSION
+```{r}
+#RED
+  #fitting a linear model using all parameters
+  red_lm <- lm( quality ~. , data = red)
+  summary(red_lm)
+  
+  #residuals
+  model_residuals = red_lm$residuals
+  # Plot the result of the residuals
+  hist(model_residuals,
+        main = "Residual of Red wine data")
+  #we can see that the residuals are normal with mean 0.
+  
+  
+#WHITE
+  #fitting a linear model using all parameters
+  white_lm <- lm( quality ~. , data = white)
+  summary(white_lm)
+
+  #residuals
+  model_residuals = white_lm$residuals
+
+  # Plot the result of the residuals
+  hist(model_residuals,
+       main = "Residual of White wine data") 
+  #we can also see that the residuals are normal with mean 0.
+```
+
+
+CALCULATING BIC
 
 ```{r}
+#RED
+  #best-subset selection
+  best = regsubsets(quality~., data = red, nvmax = 19)
+  best_summary <- summary(best)
+  best_summary
+  
+  #calculating BIC
+  plot(best_summary$bic, xlab = "Number of Variables", ylab = "BIC", type = "l", 
+        main = "BIC of Red" )
+  bic_min = which.min(best_summary$bic) 
+  points(bic_min, best_summary$bic[bic_min], col = "red", cex = 2, pch = 20)
 
-full_red_sub <- regsubsets(quality ~., data = red_no_type, nvmax = 11)
-plot(full_red_sub, scale = "bic")
 
-full_red_for <- regsubsets(quality ~., data = red_no_type, method = "forward", nvmax = 11)
-plot(full_red_for, scale = "bic")
+#WHITE
+  #best-subset selection
+  best = regsubsets(quality~., data = white, nvmax = 19)
+  best_summary <- summary(best)
+  best_summary
+  
+  #calculating BIC
+  plot(best_summary$bic, xlab = "Number of Variables", ylab = "BIC", type = "l",
+       main = "BIC of White")
+  bic_min = which.min(best_summary$bic) 
+  points(bic_min, best_summary$bic[bic_min], col = "red", cex = 2, pch = 20)
 
-full_red_back <- regsubsets(quality ~., data = red_no_type, method = "backward", nvmax = 11)
-plot(full_red_back, scale = "bic")
 
 ```
+BIC of RED graph shows that having 6 number of variable has lowest BIC. So we will choose the 
+6 variables from best subset selection: 'volatile acidity', 'chlorides', 'total sulfur dioxide', 'pH', 
+'sulphates', and 'alcohol'.
+
+BIC of WHITE graph shows that having 8 number of variable has lowest BIC. So we will choose the 
+8 variables from best subset selection:`fixed acidity`, `volatile acidity`,  `residual sugar`
+, `free sulfur dioxide`, density, pH,  sulphates, alcohol
+
+
+
+GETTING MSE
+```{r}
+#Getting test and training dataset and linear model using the co-variates 
+#chosen from best subset selection
+
+#RED
+  calculate_test_error_red <- function(seed) {
+    set.seed(seed)
+    n <- nrow(red)
+    size <- floor(n * 0.75)  # Corrected to take 75% of the data size for training
+    
+    # Training the test model
+    train_ind <- sample(seq_len(n), size = size)
+    trainData <- red[train_ind, ]
+    testData <- red[-train_ind, ]
+    
+    # Fit linear model
+    model_red <- lm(quality ~ `volatile acidity` + chlorides + `total sulfur dioxide` + pH + sulphates + alcohol, data = trainData)
+    
+    # Predicting on test data using the fitted model
+    predicted_values <- predict(model_red, newdata = testData)
+    
+    # Compute the test error as Root Mean Squared Error (RMSE)
+    actual_values <- testData$quality
+    error <- sqrt(mean((predicted_values - actual_values)^2))
+    return(error)
+  }
+
+#WHITE
+ calculate_test_error_white <- function(seed) {
+  set.seed(seed)
+  n <- nrow(white)
+  size <- floor(n * 0.75)  # Corrected to take 75% of the data size for training
+  
+  # Training the test model
+  train_ind <- sample(seq_len(n), size = size)
+  trainData <- white[train_ind, ]
+  testData <- white[-train_ind, ]
+  
+  # Fit linear model
+  model <- lm(quality ~ `fixed acidity`+`volatile acidity`+ `residual sugar`+
+                `free sulfur dioxide`+ density + pH + sulphates + alcohol, 
+              data = trainData)
+  
+  # Predicting on test data using the fitted model
+  predicted_values <- predict(model, newdata = testData)
+  
+  # Compute the test error as Root Mean Squared Error (RMSE)
+  actual_values <- testData$quality
+  error <- sqrt(mean((predicted_values - actual_values)^2))
+  return(error)
+}
+
+```
+
+CALCULATING MSE
+```{r}
+#RED
+  #average MSE of linear model using 6 coviarates
+  mse1 <- calculate_test_error_red(1)
+  mse2 <- calculate_test_error_red(2)
+  mse3 <- calculate_test_error_red(3)
+  mse4 <- calculate_test_error_red(4)
+  mse5 <- calculate_test_error_red(5)
+  
+  red_MSE <- print(mean(mse1,mse2,,mse3,mse4,mse5))
+  red_MSE
+  
+#WHITE
+  mse1 <- calculate_test_error_white(1)
+  mse2 <- calculate_test_error_white(2)
+  mse3 <- calculate_test_error_white(3)
+  mse4 <- calculate_test_error_white(4)
+  mse5 <- calculate_test_error_white(5)
+
+  white_MSE <- print(mean(mse1,mse2,,mse3,mse4,mse5))
+  white_MSE
+```
+
+RED : Result shows that the MSE from using a linear model with 6 predictors chosen from 
+best subset selection has average MSE of 65%. This is a high number, so we will try nonlinear functions
+to predict quality.
+
+WHITE : Result shows that the MSE from using a linear model with 8 predictors chosen from 
+best subset selection has average MSE of 73%. This is a high number, so we will try nonlinear functions
+to predict quality.
+
 
