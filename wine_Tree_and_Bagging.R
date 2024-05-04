@@ -7,8 +7,11 @@ White <- wine[wine$type == "white", 2:13]
 Red <- wine[wine$type == "red", 2:13]
 length(White)
 
+library(tree)
+
 #regression tree for white
 white.test.MSEs.tree <- numeric(5)
+white.test.MSEs.size <- numeric(5)
 for (i in 1:5) {
   set.seed(i)
   
@@ -22,15 +25,21 @@ for (i in 1:5) {
   #text(regtree.white, pretty = 0)
   
   #prune tree
-  cv.white <- cv.tree(regtree.white)
-  plot(cv.white$size , cv.white$dev, type = "b")
+  cv.white <- cv.tree(regtree.white, FUN=prune.tree)
+  #plot(cv.white$size , cv.white$dev, type = "b")
   
-  prune.white <- prune.tree(regtree.white, best = 6) # change best param accordingly
-  #plot(prune.white)
-  #text(prune.white , pretty = 0)
+  # Prune the tree to the optimal level of complexity
+  optimal_size <- cv.white$size[which.min(cv.white$dev)]
+  pruned.white <- prune.tree(regtree.white, best = optimal_size)
+  
+  # Record optimal size for each iteration
+  white.test.MSEs.size[i] <- optimal_size
+  
+  #plot(pruned.white)
+  #text(pruned.white , pretty = 0)
   
   #test MSE
-  yhat.tree.white <- predict(regtree.white , newdata = White[-train , ]) #change first param to be best tree
+  yhat.tree.white <- predict(pruned.white , newdata = White[-train , ]) #change first param to be best tree
   white.test <- White[-train, "quality"]
   #plot(yhat.tree.white , white.test)
   #abline(0, 1)
@@ -38,9 +47,12 @@ for (i in 1:5) {
 }
 white.test.MSEs.tree
 mean(white.test.MSEs.tree)
+white.test.MSEs.size
+
 
 #regression tree for red
 red.test.MSEs.tree <- numeric(5)
+red.test.MSEs.size <- numeric(5)
 for (i in 1:5) {
   set.seed(i)
   
@@ -54,15 +66,18 @@ for (i in 1:5) {
   #text(regtree.red, pretty = 0)
   
   #prune tree
-  cv.red <- cv.tree(regtree.red)
-  plot(cv.red$size , cv.red$dev, type = "b")
+  cv.red <- cv.tree(regtree.red, FUN=prune.tree)
+  #plot(cv.red$size , cv.red$dev, type = "b")
   
-  prune.red <- prune.tree(regtree.red, best = 8) # change best param accordingly
-  #plot(prune.red)
-  #text(prune.red , pretty = 0)
+  # Prune the tree to the optimal level of complexity
+  optimal_size <- cv.red$size[which.min(cv.red$dev)]
+  pruned.red <- prune.tree(regtree.red, best = optimal_size)
+  
+  # Record optimal size for each iteration
+  red.test.MSEs.size[i] <- optimal_size
   
   #test MSE
-  yhat.tree.red <- predict(regtree.red , newdata = Red[-train , ]) #change first param to be best tree
+  yhat.tree.red <- predict(pruned.red , newdata = Red[-train , ]) #change first param to be best tree
   red.test <- Red[-train, "quality"]
   #plot(yhat.tree.red , red.test)
   #abline(0, 1)
@@ -70,7 +85,7 @@ for (i in 1:5) {
 }
 red.test.MSEs.tree
 mean(red.test.MSEs.tree)
-
+red.test.MSEs.size
 
 
 # Bagging for white
@@ -83,7 +98,7 @@ for (i in 1:5) {
   
   bag.white <- randomForest(quality ~ ., data = White ,
                 subset = train, mtry = 11, importance = TRUE) #mtry = number of predictors to consider
-  bag.white
+  print(bag.white)
   
   #test MSE
   yhat.bag.white <- predict(bag.white , newdata = White[-train , ])
@@ -105,7 +120,7 @@ for (i in 1:5) {
   
   bag.red <- randomForest(quality ~ ., data = Red ,
                             subset = train, mtry = 11, importance = TRUE)
-  bag.red
+  print(bag.red)
   
   #test MSE
   yhat.bag.red <- predict(bag.red, newdata = Red[-train , ])
